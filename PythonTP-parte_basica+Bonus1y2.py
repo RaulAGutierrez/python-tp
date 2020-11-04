@@ -109,7 +109,7 @@ class Proveedor(threading.Thread):
                         
                         with self.monitor:  ## Sincroniza para no pizarse con otro proveedor
        
-                            if not heladera.estaLlena():
+                            if not heladera.estaLlena() or heladera.tieneCervezas():  # condicion para agregar producto en la heladera
                                 logging.info(f'la heladera {heladera.nombre} esta enchufada')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.botellas} botellas')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.latas} latas')
@@ -162,15 +162,17 @@ def bar(monitorProvee,monitorBeodxs,listaHeladeras):
               
                     with monitorProvee:
                         
+                        pinchadura(listaHeladeras) # vemos si ubicando la posibilidad de que pinche alguna lata durante el adquire() del monitor
+                        
                         if heladera.estaLlena(): # si esta llena, informamos la cantidad de botellas y latas que tiene
-                            
-                            pinchadura(listaHeladeras)
                             
                             logging.info(f'{heladera.nombre} quedo {heladera.botellas} botellas')
                             logging.info(f'{heladera.nombre} quedo {heladera.latas} latas')
                             logging.info(f'la heladera {heladera.nombre} Llena -> boton de enfriando')
+                            
+                            
                             monitorProvee.notify()  # avisamos al proveveedor colgado que puede seguir entregando
-                            time.sleep(5)                               
+                            time.sleep(5)
        
                         else: # si NO esta llena, informamos la cantidad final de botellas y latas 
                             logging.info(f'la heladera {heladera.nombre} no esta llena')
@@ -254,17 +256,18 @@ class Beodxs(threading.Thread):
         else: self.tomarLata()
     
     def run(self):
-        timmer(1,9) # Beode desesperado por arrancar a tomar. Lo ponemos a esperar un poco
+        timmer(1,19) # Beode desesperado por arrancar a tomar. Lo ponemos a esperar un poco
         
         while not self.llegoAlLimite():
                 
                 indice =generarNumeroEntre(0,len(self.listaHeladeras)-1)
                 heladera = self.listaHeladeras[indice]
+                logging.info(f'Beode {self.name} abriendo la heladera {heladera.nombre}, espera que haya lo que busca')
                 # sincronizamos el acceso a la heladera
                 with self.monitor:
                     while not self.hayaAlgoQueMeGusta(heladera) and not heladera.estaLlena() or not heladera.tieneCervezas() or not heladera.estaEnchufada: # mientras no haya cervezas
                         self.monitor.wait()  # el beodo espera la señal, es decir el notify
-                    logging.info(f'Beode {self.name} abriendo la heladera {heladera.nombre}')
+                    logging.info(f'Beode {self.name} tiene lo que busca en la heladera {heladera.nombre}')
                     #time.sleep(5)
                     self.tomarUnaCerveza()
                     time.sleep(10) # Beode tomando una birra, por eso lo ponemos a esperar un poco    
