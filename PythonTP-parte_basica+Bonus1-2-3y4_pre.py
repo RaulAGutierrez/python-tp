@@ -54,6 +54,9 @@ class Heladera:
         
     def quitarLata(self):
         self.latas -=1
+        
+    def cantidadCervezas(self):
+        return self.botellas + self.latas
       
   
     
@@ -113,14 +116,14 @@ class Proveedor(threading.Thread):
                                 logging.info(f'la heladera {heladera.nombre} esta enchufada')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.botellas} botellas')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.latas} latas')
-                                logging.info(f'el proveedor {self.name} tiene {self.proveeBotellas} botellas')
-                                logging.info(f'el proveedor {self.name} tiene {self.proveeLatas} latas')
-                                time.sleep(2)
+                                logging.info(f'{self.name} tiene para entregar {self.proveeBotellas} botellas')
+                                logging.info(f'{self.name} tiene para entregar {self.proveeLatas} latas')
+                                time.sleep(4)
                                 self.entregarBotellas(heladera)
                                 self.entregarLatas(heladera)
                             else:
                                 self.monitor.notify()
-                                logging.info(f'El proveedor {self.name} no entrega, la heladera {heladera.nombre} esta llena')
+                                logging.info(f'{self.name} NO entrega, la heladera {heladera.nombre} esta llena')
                                 time.sleep(4)
                         
                         if self.entregaCompleta():
@@ -132,7 +135,7 @@ class Proveedor(threading.Thread):
 
 
 
-def bar(monitorProvee,monitorBeodxs,listaHeladeras):
+def bar(monitorProvee,monitorBeodxs,monitorOrdenadaHeladeras,listaHeladeras):
     global cantidadMaxBotellas, cantidadMaxLatas
     
     logging.info(f'Comienza la fiesta')
@@ -181,8 +184,48 @@ def bar(monitorProvee,monitorBeodxs,listaHeladeras):
                                 logging.info(f'{heladera.nombre} tiene {heladera.latas} latas')
                                 monitorBeodxs.notify()
                                 time.sleep(5)
+                                
+                time.sleep(10)
+                    
+            # ejecutar ordenamiento de heladeras luego de la entrega de proveedores
+            """with monitorOrdenadaHeladeras:
+                
+                mostrarContenido(listaHeladeras)
+                
+                logging.info(f'Ordenando heladeras')
+                ordenarHeladerasMenosLlena(listaHeladeras)
+                logging.info(f'Las heladeras fueron reorganizadas para ser cargadas de nuevo')
+                time.sleep(5)
                             
-                            
+                mostrarContenido(listaHeladeras)"""
+
+
+def ordenarHeladerasMenosLlena(listaHeladeras):
+    posiciones = len(listaHeladeras)
+    i= 0
+    while (i < posiciones):
+        j = i
+        while (j < posiciones):
+            if(listaHeladeras[i].cantidadCervezas() > listaHeladeras[j].cantidadCervezas()):
+                temp = listaHeladeras[i]
+                listaHeladeras[i] = listaHeladeras[j]
+                listaHeladeras[j] = temp
+            j= j+1
+        i=i+1
+
+
+
+def mostrarContenido(listaHeladeras):
+    
+    logging.info(f'vamos a ver el estado de las heladeras')
+    for heladera in listaHeladeras:
+        logging.info(f'ESTADO: heladera {heladera.nombre} tiene {heladera.botellas} botellas')
+        logging.info(f'ESTADO: heladera {heladera.nombre} tiene {heladera.latas} latas')
+        time.sleep(3)
+    logging.info(f'Terminamos de ver las heladeras')
+    time.sleep(5)
+
+                      
 
 def pinchadura(listaHeladeras):   
     global cantidadMaxBotellas, cantidadMaxLatas
@@ -275,6 +318,7 @@ heladeras = []
 monitorFiesta = threading.Condition()
 monitorBeode = threading.Condition()
 monitorPinchadura = threading.Condition()
+monitorOrdenHeladeras = threading.Condition()
 
 h1 = Heladera(nombre = "h1")
 h2 = Heladera(nombre = "h2")
@@ -303,4 +347,4 @@ Beodxs("borrachin 1",4,2,monitorBeode,heladeras).start()
 Beodxs("borrachin 2",3,8,monitorBeode,heladeras).start()
 Beodxs("borrachin 3",0,5,monitorBeode,heladeras).start()
 
-bar(monitorFiesta,monitorBeode,heladeras) # comienza la fiesta en el bar
+bar(monitorFiesta,monitorBeode,monitorOrdenHeladeras,heladeras) # comienza la fiesta en el bar

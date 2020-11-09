@@ -54,6 +54,9 @@ class Heladera:
         
     def quitarLata(self):
         self.latas -=1
+        
+    def cantidadCervezas(self):
+        return self.botellas + self.latas
       
   
     
@@ -85,13 +88,13 @@ class Proveedor(threading.Thread):
         while (heladera.botellas < cantidadMaxBotellas and self.proveeBotellas > 0):
             self.entregaBotella()
             heladera.agregarBotella()
-            time.sleep(2)
+            time.sleep(3)
             
     def entregarLatas(self,heladera):
         while (heladera.latas < cantidadMaxLatas and self.proveeLatas > 0):
             self.entregaLata()
             heladera.agregarLata()
-            time.sleep(2)
+            time.sleep(3)
     
     def run(self):
         
@@ -108,19 +111,23 @@ class Proveedor(threading.Thread):
                         heladera = self.listaHeladeras[indice]
                         
                         with self.monitor:  ## Sincroniza para no pizarse con otro proveedor
+                            
+                            while not heladera.estaEnchufada:
+                                logging.info(f'Esperando que enchufen las heladeras')
+                                time.sleep(4)
        
                             if not heladera.estaLlena() or heladera.tieneCervezas():  # condicion para agregar producto en la heladera
                                 logging.info(f'la heladera {heladera.nombre} esta enchufada')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.botellas} botellas')
                                 logging.info(f'la heladera {heladera.nombre} tiene {heladera.latas} latas')
-                                logging.info(f'el proveedor {self.name} tiene {self.proveeBotellas} botellas')
-                                logging.info(f'el proveedor {self.name} tiene {self.proveeLatas} latas')
-                                time.sleep(2)
+                                logging.info(f'{self.name} tiene para entregar {self.proveeBotellas} botellas')
+                                logging.info(f'{self.name} tiene para entregar {self.proveeLatas} latas')
+                                time.sleep(4)
                                 self.entregarBotellas(heladera)
                                 self.entregarLatas(heladera)
                             else:
                                 self.monitor.notify()
-                                logging.info(f'El proveedor {self.name} no entrega, la heladera {heladera.nombre} esta llena')
+                                logging.info(f'{self.name} NO entrega, la heladera {heladera.nombre} esta llena')
                                 time.sleep(4)
                         
                         if self.entregaCompleta():
@@ -132,15 +139,28 @@ class Proveedor(threading.Thread):
 
 
 
-def bar(monitorProvee,monitorBeodxs,listaHeladeras):
+def bar(monitorProvee,monitorBeodxs,monitorOrdenadaHeladeras,listaHeladeras):
     global cantidadMaxBotellas, cantidadMaxLatas
     
     logging.info(f'Comienza la fiesta')
     logging.info(f'controlemos las heladeras')
     time.sleep(4)
     
-    while (True):       
+    while (True):      
             
+            # ejecutar ordenamiento de heladeras luego de la entrega de proveedores
+            with monitorOrdenadaHeladeras:
+                
+                mostrarContenido(listaHeladeras)
+                
+                logging.info(f'Ordenando heladeras')
+                ordenarHeladerasMenosLlena(listaHeladeras)
+                logging.info(f'Las heladeras fueron reorganizadas para ser cargadas de nuevo')
+                mostrarContenido(listaHeladeras)
+                time.sleep(15)
+
+
+        
             for heladera in listaHeladeras: ## recorre la lista de heladeras
                 
                 # La idea es si no esta enchufada la heladera, la enchufamos.
@@ -160,20 +180,16 @@ def bar(monitorProvee,monitorBeodxs,listaHeladeras):
                             logging.info(f'{heladera.nombre} quedo {heladera.botellas} botellas')
                             logging.info(f'{heladera.nombre} quedo {heladera.latas} latas')
                             logging.info(f'la heladera {heladera.nombre} Llena -> boton de enfriando')
-                            
-                            
+                             
                             monitorProvee.notify()  # avisamos al proveveedor colgado que puede seguir entregando
                             time.sleep(5)
-       
-                        else: # si NO esta llena, informamos la cantidad final de botellas y latas 
-                            logging.info(f'la heladera {heladera.nombre} no esta llena')
-                            logging.info(f'{heladera.nombre} tiene {heladera.botellas} botellas')
-                            logging.info(f'{heladera.nombre} tiene {heladera.latas} latas')
-                            time.sleep(5)
                             
-                    if heladera.tieneCervezas(): # si la heladera tiene cervezas
+                        elif heladera.tieneCervezas(): # si la heladera tiene cervezas
                         
-                            pinchadura(listaHeladeras)
+                            monitorProvee.notify()
+                            
+                            with monitorBeodxs:
+                                pinchadura(listaHeladeras)
                         
                             with monitorBeodxs: 
                                 logging.info(f'la heladera {heladera.nombre} tiene cervezas')
@@ -182,7 +198,43 @@ def bar(monitorProvee,monitorBeodxs,listaHeladeras):
                                 monitorBeodxs.notify()
                                 time.sleep(5)
                             
+                        else: # si NO esta llena, informamos la cantidad final de botellas y latas 
+                            logging.info(f'la heladera {heladera.nombre} no esta llena')
+                            logging.info(f'{heladera.nombre} tiene {heladera.botellas} botellas')
+                            logging.info(f'{heladera.nombre} tiene {heladera.latas} latas')
+                            time.sleep(5)
                             
+                    
+                                
+                time.sleep(10)
+                
+            
+
+def ordenarHeladerasMenosLlena(listaHeladeras):
+    posiciones = len(listaHeladeras)
+    i= 0
+    while (i < posiciones):
+        j = i
+        while (j < posiciones):
+            if(listaHeladeras[i].cantidadCervezas() > listaHeladeras[j].cantidadCervezas()):
+                temp = listaHeladeras[i]
+                listaHeladeras[i] = listaHeladeras[j]
+                listaHeladeras[j] = temp
+            j= j+1
+        i=i+1
+
+
+
+def mostrarContenido(listaHeladeras):
+    
+    logging.info(f'vamos a ver el estado de las heladeras')
+    for heladera in listaHeladeras:
+        logging.info(f'ESTADO: heladera {heladera.nombre} tiene {heladera.botellas} botellas')
+        logging.info(f'ESTADO: heladera {heladera.nombre} tiene {heladera.latas} latas')
+    logging.info(f'Terminamos de ver las heladeras')
+    time.sleep(2)
+
+                      
 
 def pinchadura(listaHeladeras):   
     global cantidadMaxBotellas, cantidadMaxLatas
@@ -275,6 +327,7 @@ heladeras = []
 monitorFiesta = threading.Condition()
 monitorBeode = threading.Condition()
 monitorPinchadura = threading.Condition()
+monitorOrdenHeladeras = threading.Condition()
 
 h1 = Heladera(nombre = "h1")
 h2 = Heladera(nombre = "h2")
@@ -299,8 +352,8 @@ for i in range(10): # cantidad de proveedores lanzados
     timmer(2,4)
 
 # los Beodes si no toman botella o latas, se los instancia en 0
-Beodxs("borrachin 1",4,2,monitorBeode,heladeras).start()
+Beodxs("borrachin 1",8,12,monitorBeode,heladeras).start()
 Beodxs("borrachin 2",3,8,monitorBeode,heladeras).start()
-Beodxs("borrachin 3",0,5,monitorBeode,heladeras).start()
+Beodxs("borrachin 3",0,15,monitorBeode,heladeras).start()
 
-bar(monitorFiesta,monitorBeode,heladeras) # comienza la fiesta en el bar
+bar(monitorFiesta,monitorBeode,monitorOrdenHeladeras,heladeras) # comienza la fiesta en el bar
